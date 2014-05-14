@@ -2,6 +2,7 @@
 import tektronix
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 # List all the available Visa instrument
 name = "USB0::0x0699::0x0368::C032162::INSTR"
@@ -10,6 +11,14 @@ scope.write("RS232:BAUD 19200")
 
 X = None
 Y = None
+
+scope.set_horizontal_record_length(1000)
+print scope.get_horizontal_record_length()
+scope.start_acq()
+time.sleep(2)
+scope.stop_acq()
+print scope.get_horizontal_record_length()
+
 
 for x in range(2):
     (_X, _Y) = scope.read_data_one_channel('CH1', t0=0, DeltaT=10, x_axis_out=True)

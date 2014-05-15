@@ -1,9 +1,42 @@
 import visa
 import logging
 import struct
+import getpass
+import pickle
+import time
+import os
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+class CacheManager(object):
+    def __init__(self, cache_dir=None):
+        if cache_dir == None:
+            username = getpass.getuser()
+            homedir = os.path.expanduser('~' + username)
+            cache_dir = os.path.join(homedir, ".tektronix")
+        if not os.path.isdir(cache_dir):
+            os.mkdir(cache_dir)
+        self._cache_dir = cache_dir
+
+    @staticmethod
+    def load(name, cache_dir=None):
+        cm = CacheManager(cache_dir)
+        try:
+            pickle_fn = os.path.join(cm._cache_dir, name)
+            fh = open(pickle_fn)
+            logger.debug("CacheManager loading")
+            return pickle.load(fh)
+        except:
+            return None
+        
+    @staticmethod
+    def save(name, obj, cache_dir=None):
+        logger.debug("CacheManager saving")
+        cm = CacheManager(cache_dir)
+        pickle_fn = os.path.join(cm._cache_dir, name)
+        fh = open(pickle_fn, 'w')
+        pickle.dump(obj, fh)
 
 def numify(val):
     try:
@@ -23,6 +56,10 @@ class Namespace(dict):
         super(Namespace, self).__init__()
     
     def __getattr__(self, key):
+        key = key.upper()
+        # If we are None, we've been cached
+        if key in self and self[key] == None:
+            self[key] = self.lookup(key)
         return self[key.upper()]
 
     def dirty(self, visit=None):
@@ -91,9 +128,10 @@ class Scope(Namespace):
         self._instrument_name = instrument_name
         if connect:
             self.connect()
-    
+
     def connect(self, instrument_name=None, retry=5):
         # XXX: check scope for connection?
+        ts = time.time()
         if instrument_name:
             self._instrument_name = instrument_name
         logmsg = 'Connecting to "%s"' % self._instrument_name
@@ -111,11 +149,19 @@ class Scope(Namespace):
                     logger.error(logmsg)
                 else:
                     raise
+        delta = time.time() - ts
+        logmsg = "It took %.2f seconds to connect" % delta
+        logger.debug(logmsg)
 
     def load_environment(self):
         logmsg = 'Loading scope environment'
         logger.info(logmsg)
-        resp = self.ask('set?')
+        resp = CacheManager.load(self._instrument_name)
+        cached = False
+        if not resp:
+            resp = self.ask('set?')
+            CacheManager.save(self._instrument_name, resp)
+            cached = True
         tokens = resp.split(';')
         for token in tokens:
             if ':' in token:
@@ -130,7 +176,10 @@ class Scope(Namespace):
             token = token.split(' ')
             key = token[0]
             val = str.join(' ', token[1:])
-            head[key] = numify(val)
+            if not cached:
+                head[key] = numify(val)
+            else:
+                head[key] = None
 
     def write(self, msg):
         return self._instrument.write(msg.upper())

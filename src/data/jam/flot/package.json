@@ -1,0 +1,24 @@
+{
+    "name": "flot",
+    "version": "0.7.0",
+    "description": "Flot is a pure JavaScript plotting library for jQuery, with a focus on simple usage, attractive looks and interactive features",
+    "homepage": "http://www.flotcharts.org/",
+    "github": "https://github.com/flot/flot",
+    "licenses": [
+        {
+            "type": "MIT",
+            "url": "https://raw.github.com/flot/flot/master/LICENSE.txt"
+        }
+    ],
+    "categories": ["Visualization", "Data"],
+    "jam": {
+        "dependencies": {
+            "jquery": null
+        },
+        "main": "jquery.flot.js",
+        "shim": {
+            "exports": "jQuery",
+            "deps": ["jquery"]
+        }
+    }
+}

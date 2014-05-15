@@ -1,4 +1,5 @@
 import logging
+# logging
 logger = logging.getLogger("tektronix")
 level = logging.DEBUG
 logger.setLevel(level)
@@ -14,4 +15,5 @@ logger.addHandler(ch)
 #fh.setLevel(logging.DEBUG)
 #fh.setFormatter(formatter)
 #logger.addHandler(fh)
-from tektronix import *
+import tektronix
+import escope

@@ -1,5 +1,6 @@
 import visa
 import logging
+import struct
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -18,10 +19,24 @@ class Namespace(dict):
         self._parent = parent
         self._scope = self._parent._scope
         self._name = name
+        self._cache = {}
         super(Namespace, self).__init__()
     
     def __getattr__(self, key):
         return self[key.upper()]
+
+    def dirty(self, visit=None):
+        if visit == None:
+            visit = []
+        if self in visit:
+            return
+        self._cache = {}
+        visit.append(self)
+        for nodename in self:
+            node = self[nodename]
+            if hasattr(node, "dirty"):
+                node.dirty(visit)
+        self._parent.dirty(visit)
 
     def lookup(self, key):
         name = str.join(':', self.get_name() + [key.upper()])
@@ -30,9 +45,9 @@ class Namespace(dict):
 
     def verify(self, key, val):
         scope_val = self.lookup(key)
-        if val != scope_val or type(val) != type(scope_val):
-            raise ValueError, 'key "%s": current value "%s" (type %s) does not match returned value "%s" (type %s)' % (name, val, type(val), scope_val, type(scope_val))
-        logmsg = 'Verified key "%s" == "%s"' % (key, val)
+        if val != scope_val:
+            raise ValueError, 'key "%s": current value "%s" (type %s) does not match returned value "%s" (type %s)' % (key, val, type(val), scope_val, type(scope_val))
+        logmsg = 'verified key "%s" == "%s"' % (key, val)
         logger.debug(logmsg)
         return True
 
@@ -47,6 +62,7 @@ class Namespace(dict):
                 self._scope.write(cmd)
             if self.verify(key, val):
                 self[key.upper()] = val
+                self.dirty()
 
     def get_name(self, qualified=True):
         if not qualified:
@@ -76,20 +92,30 @@ class Scope(Namespace):
         if connect:
             self.connect()
     
-    def connect(self, instrument_name=None):
+    def connect(self, instrument_name=None, retry=5):
         # XXX: check scope for connection?
         if instrument_name:
             self._instrument_name = instrument_name
         logmsg = 'Connecting to "%s"' % self._instrument_name
         logger.info(logmsg)
         rm = visa.ResourceManager()
-        self._instrument = rm.get_instrument(self._instrument_name)
-        self.load_environment()
+        while retry:
+            retry -= 1
+            try:
+                self._instrument = rm.get_instrument(self._instrument_name)
+                self.load_environment()
+                break
+            except Exception as err:
+                if retry:
+                    logmsg = 'Error: %s, retrying' % str(err)
+                    logger.error(logmsg)
+                else:
+                    raise
 
     def load_environment(self):
         logmsg = 'Loading scope environment'
         logger.info(logmsg)
-        resp = self.ask('SET?')
+        resp = self.ask('set?')
         tokens = resp.split(';')
         for token in tokens:
             if ':' in token:
@@ -107,14 +133,74 @@ class Scope(Namespace):
             head[key] = numify(val)
 
     def write(self, msg):
-        return self._instrument.write(msg)
+        return self._instrument.write(msg.upper())
         logmsg = 'sent "%s"' % msg
         logger.debug(logmsg)
 
     def ask(self, msg):
         resp = self._instrument.ask(msg)
         resp = resp.strip()
-        logmsg = 'received "%s"' % resp
+        logmsg = 'recv "%s"' % resp
         logger.debug(logmsg)
         return resp
 
+    def read(self):
+        resp = self._instrument.read()
+        resp = resp.strip()
+        logmsg = 'read "%s"' % resp
+        logger.debug(logmsg)
+        return resp
+
+    def read_raw(self):
+        resp = self._instrument.read_raw()
+        logmsg = 'read_raw "%s"' % resp
+        logger.debug(logmsg)
+        return resp
+
+    def get_encoding(self):
+        if "__encoding__" in self._cache:
+            return self._cache["__encoding__"]
+        flag = ''
+        fmtch = ''
+        if self.dat.enc == "ASCI":
+            # ascii
+            fmtch = 's'
+        else:
+            # binary
+            width_code = {1: 'b', 2: 'h', 4:'i'}
+            # data width
+            fmtch = width_code[self.dat.wid]
+            # encoding
+            if 'RI' in self.dat.enc:
+                # signed
+                fmtch = fmtch.lower()
+            else:
+                # unsigned
+                fmtch = fmtch.upper()
+            if self.dat.enc[0] == 'S':
+                # LSB
+                flag += '<'
+            else:
+                # MSB
+                flag += '>'
+        logmsg = 'get_encoding(): (%s, %s)' % (fmtch, flag)
+        logger.debug(logmsg)
+        self._cache["__encoding__"] = (fmtch, flag)
+        return self._cache["__encoding__"]
+
+    @property
+    def curve(self):
+        (fmtch, flag) = self.get_encoding()
+        self.write("curve?")
+        curve = self.read_raw().strip()
+        if fmtch == 's':
+            return map(int, curve.split(','))
+        hdr_length = int(curve[1])
+        offset = 2 + hdr_length
+        length = int(curve[2:offset]) / self.dat.wid
+        curve = curve[offset:]
+        fmt = flag + (fmtch * length)
+        return struct.unpack(fmt, curve)
+
+    def record(self, nframes=1):
+        return [self.curve for frame in xrange(nframes)]

@@ -19,6 +19,17 @@ class TestSequenceFunctions(unittest.TestCase):
         state = self.scope.acq.state = 1
         self.assertTrue(state == self.scope.acq.state)
 
+    def test_curve(self):
+        ENC = ["RIB", "RPB", "SRI", "SRP"]
+        WID = [1, 2]
+        for wid in WID:
+            for enc in ENC:
+                self.scope.dat.wid = wid
+                self.scope.dat.enc = enc
+                self.assertTrue(self.scope.curve)
+        self.scope.dat.enc = "ASCI"
+        self.assertTrue(self.scope.curve)
+
     def test_report(self):
         report = self.scope.report()
         self.assertTrue(report)

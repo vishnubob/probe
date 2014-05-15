@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import sys
 from setuptools import setup
+from pip.req import parse_requirements
+
+install_requires = parse_requirements("requirements.txt")
+install_requires = [str(ir.req) for ir in install_requires]
 
 setup(
     name="tektronix", 
@@ -13,4 +17,5 @@ setup(
     requires=['pyvisa'],
     package_dir={"tektronix": "src"},
     packages=["tektronix"],
+    install_requires=install_requires,
 )

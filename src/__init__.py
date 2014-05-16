@@ -15,5 +15,4 @@ logger.addHandler(ch)
 #fh.setLevel(logging.DEBUG)
 #fh.setFormatter(formatter)
 #logger.addHandler(fh)
-import tektronix
-import escope
+from tektronix import *

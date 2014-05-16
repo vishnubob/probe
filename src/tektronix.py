@@ -5,9 +5,30 @@ import getpass
 import pickle
 import time
 import os
+import math
+import traceback
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
+
+# Retry decorator with exponential backoff
+def retry(tries, delay=3, backoff=2):
+    def deco_retry(f):
+        def f_retry(*args, **kwargs):
+            mtries, mdelay = tries, delay
+            while mtries > 0:
+                try:
+                    rv = f(*args, **kwargs)
+                except:
+                    tb = traceback.format_exc()
+                    logger.error(tb)
+                    mtries -= 1
+                    time.sleep(mdelay)
+                    mdelay *= backoff
+                return rv
+            return None
+        return f_retry
+    return deco_retry
 
 class CacheManager(object):
     def __init__(self, cache_dir=None):
@@ -44,7 +65,7 @@ def numify(val):
             return float(val)
         else:
             return int(val)
-    except ValueError:
+    except:
         return val
 
 class Namespace(dict):
@@ -181,18 +202,7 @@ class Scope(Namespace):
             else:
                 head[key] = None
 
-    def write(self, msg):
-        return self._instrument.write(msg.upper())
-        logmsg = 'sent "%s"' % msg
-        logger.debug(logmsg)
-
-    def ask(self, msg):
-        resp = self._instrument.ask(msg)
-        resp = resp.strip()
-        logmsg = 'recv "%s"' % resp
-        logger.debug(logmsg)
-        return resp
-
+    @retry(5, delay=0.1)
     def read(self):
         resp = self._instrument.read()
         resp = resp.strip()
@@ -200,9 +210,24 @@ class Scope(Namespace):
         logger.debug(logmsg)
         return resp
 
+    @retry(5, delay=0.1)
     def read_raw(self):
         resp = self._instrument.read_raw()
         logmsg = 'read_raw "%s"' % resp
+        logger.debug(logmsg)
+        return resp
+
+    @retry(5, delay=0.1)
+    def write(self, msg):
+        logmsg = 'sent "%s"' % msg
+        logger.debug(logmsg)
+        return self._instrument.write(msg.upper())
+
+    @retry(5, delay=0.1)
+    def ask(self, msg):
+        resp = self._instrument.ask(msg)
+        resp = resp.strip()
+        logmsg = 'recv "%s"' % resp
         logger.debug(logmsg)
         return resp
 

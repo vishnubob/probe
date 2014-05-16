@@ -2,48 +2,67 @@
 <html>
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-	<title>Flot Examples: Basic Usage</title>
+	<title>escope</title>
     <link href="/css/examples.css" rel="stylesheet" type="text/css">
 	<script language="javascript" type="text/javascript" src="/jam/require.js"></script>
     <script src="http://cdn.sockjs.org/sockjs-0.3.min.js"></script>
 	<script type="text/javascript">
     require(['flot'], function ($) {
+        var options = { lines: { show: true }, points: { show: false }, grid: { hoverable: true, autoHighlight: false }, xaxis: { tickDecimals: 0, tickSize: 100 }, };
         var sock = new SockJS('http://localhost:8000/socket');
+        var data = [];
+        var channels = [];
+        var record_on = 1;
+        $.plot("#placeholder", data, options);
         sock.onopen = function() {
-            console.log('open');
-            sock.send("curve");
+            fetch_curve();
         };
-        sock.onmessage = function(e) {
-            console.log('message', e.data);
+        sock.onmessage = function(msg) {
+            $.plot("#placeholder", msg["data"], options)
+            if (record_on)
+            {
+                fetch_curve();
+            }
         };
         sock.onclose = function() {
-            console.log('close');
         };
+        fetch_curve = function() {
+            var msg = "curve";
+            msg += channels.join();
+            sock.send(msg)
+        };
+        toggle_channel = function(channel_id) {
+            record_on = 0;
+            var idx = channels.indexOf(channel_id);
+            if (idx > -1)
+            {
+                channels.splice(idx, 1)
+            } else
+            {
+                channels.push(channel_id);
+            }
+            record_on = 1;
+        };
+        $("#CH1").click(function () { toggle_channel(1); });
+        $("#CH2").click(function () { toggle_channel(2); });
+        $("#CH3").click(function () { toggle_channel(3); });
+        $("#CH4").click(function () { toggle_channel(4); });
+        $("#REC").click(function () { record_on = !record_on; fetch_curve(); });
+        toggle_channel(1);
     });
 
 	</script>
 </head>
 <body>
-
-	<div id="header">
-		<h2>Basic Usage</h2>
-	</div>
-
 	<div id="content">
-
 		<div class="demo-container">
 			<div id="placeholder" class="demo-placeholder"></div>
 		</div>
-
-		<p>You don't have to do much to get an attractive plot.  Create a placeholder, make sure it has dimensions (so Flot knows at what size to draw the plot), then call the plot function with your data.</p>
-
-		<p>The axes are automatically scaled.</p>
-
+        <button id="CH1">CH1</button>
+        <button id="CH2">CH2</button>
+        <button id="CH3">CH3</button>
+        <button id="CH4">CH4</button>
+        <button id="REC">REC</button>
 	</div>
-
-	<div id="footer">
-		Copyright &copy; 2007 - 2014 IOLA and Ole Laursen
-	</div>
-
 </body>
 </html>

@@ -8,17 +8,15 @@ from pip.req import parse_requirements
 install_requires = parse_requirements(os.path.join(os.path.split(__file__)[0], "requirements.txt"))
 install_requires = [str(ir.req) for ir in install_requires]
 package_data = [os.path.join(root[4:], fn) for (root, dirs, files) in list(os.walk("src/data")) for fn in files]
-print package_data
 
 setup(
-    name="tektronix", 
+    name="probe", 
     version='0.1',
     author='Giles Hall', 
     author_email="giles@polymerase.org",
-    url='https://github.com/vishnubob/tektronix',
-    description='Interface to Tektronix Scope',
+    url='https://github.com/vishnubob/probe',
+    description='Web based interface for desktop oscilloscopes.'),
     keywords=['Tektronix', 'scope', 'Data Acquisition'],
-    requires=['pyvisa'],
     package_dir={"tektronix": "src"},
     packages=["tektronix"],
     #install_requires=install_requires,
